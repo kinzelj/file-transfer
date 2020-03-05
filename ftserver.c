@@ -7,6 +7,10 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+
+#define MAX_INPUT_SIZE 256
+#define MAX_FILE_BUFFER 1024 
+
 /******************************************************************************************************
  * error handler function receives message and passes to perror function to print a system error message 
 ******************************************************************************************************/
@@ -81,18 +85,17 @@ int recvNewConnection(int socketFD)
 ******************************************************************************************************/
 void recvNewInput(int socketFD, char *input)
 {
-    recv(socketFD, input, sizeof(input) - 1, 0); // Read data from the socket, leaving \0 at end
+    memset(input, '\0', sizeof(input)); // Clear out the buffer
+    recv(socketFD, input, MAX_INPUT_SIZE - 1, 0); // Read data from the socket, leaving \0 at end
+    return;
 }
 
 int validateInput(char *input)
 {
-    char checkInput[256];
+    char checkInput[MAX_INPUT_SIZE];
     strcpy(checkInput, input);
     checkInput[strcspn(checkInput, "\n")] = '\0'; // Remove the trailing \n
     checkInput[2] = '\0';
-
-    printf("checkInput: %s\n", checkInput);
-    printf("input: %s\n", input);
 
     if (strcmp(checkInput, "-l") == 0 || strcmp(checkInput, "-g") == 0)
     {
@@ -112,8 +115,33 @@ void sendInputError(int socketFD)
         error("SERVER: ERROR writing to socket");
 }
 
-void handleRequest()
+void handleRequest(char * input)
 {
+    char command[3];
+    strcpy(command, input, 2);
+    command[2] = '\0';
+    
+    int inputIndex = 2;
+    if (strcmp(command, "-l") == 0){
+        
+      int portSize = 0; 
+      for (int i = inputIndex; input[i] != '-'; ++i) 
+          portSize = portSize * 10 + input[i] - '0'; 
+          inputIndex++;
+      inputIndex++;
+        
+      char dataPortString[portSize + 1]; 
+      strncpy(dataPortString, input + inputIndex, portSize);
+      dataPortString[portSize] = '\0'; 
+      int dataPort = atoi(dataPortString);
+      printf("dataPort: %d\n", dataPort);
+    }
+    
+    if (strcmp(command, "-g") == 0){
+        
+    }
+    
+    
 }
 
 /******************************************************************************************************
@@ -133,10 +161,10 @@ int main(int argc, char *argv[])
         //establish control connection with client
         int newConnectionFD = recvNewConnection(controlSocketFD);
         //wait for input from client
-        char input[256];
-        memset(input, '\0', sizeof(input)); // Clear out the buffer
+        char input[MAX_INPUT_SIZE];
         recvNewInput(newConnectionFD, input);
         int inputValidated = validateInput(input);
+        
         if (!inputValidated)
         {
             printf("Invalid input\n");
@@ -145,7 +173,8 @@ int main(int argc, char *argv[])
         }
         else
         {
-            handleRequest();
+            
+            handleRequest(input);
         }
     }
 }

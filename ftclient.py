@@ -16,14 +16,14 @@ import signal
 def initiateContact(serverHost, serverPort):
     clientSocket = socket(AF_INET, SOCK_STREAM)
     clientSocket.connect((serverHost, serverPort))
-    print("sent TCP connection request to: {}:{}").format(serverHost, serverPort)
+    print("sent TCP connection request to: {}:{}".format(serverHost, serverPort))
     return clientSocket
 
 #*************************************************************************************************
 # 
 #*************************************************************************************************
-def makeRequest(socket, command):
-    socket.send(command)
+def makeRequest(socket, message, serverHost, serverPort):
+    socket.sendto(message.encode(),(serverHost, serverPort))
     return
 
 #*************************************************************************************************
@@ -37,26 +37,34 @@ def recvResponse(socket):
 #*************************************************************************************************
 #   Main program body
 #*************************************************************************************************
-serverHost = sys.argv[1]
-serverPort = int(sys.argv[2])
-command = sys.argv[3]
-dataPort = ""
-fileName = ""
-if (sys.argv[3] == '-g'):
-    fileName = sys.argv[4]
-    dataPort = sys.argv[5]
+if (len(sys.argv) >= 5):
+    print(sys.argv)
+    serverHost = sys.argv[1]
+    serverPort = int(sys.argv[2])
+    
+    #establish control connection with server
+    controlConnection = initiateContact(serverHost, serverPort)
+    #call makeRequest function to send command to server
+    if (controlConnection):
+        command = sys.argv[3]
+        dataPort = ""
+        fileName = ""
+        sendRequest = ""
+        if (sys.argv[3] == '-g'):
+            fileName = sys.argv[4]
+            dataPort = sys.argv[5]
+            sendRequest = command + str(len(fileName)) + "-" + fileName + str(len(dataPort)) + "-" + dataPort
+        else:
+            dataPort = sys.argv[4]
+            sendRequest = command + str(len(dataPort)) + "-" + dataPort
+            
+        print(sendRequest)
+            
+        makeRequest(controlConnection, sendRequest, serverHost, serverPort)
+        response = recvResponse(controlConnection)
+        print(response)
 else:
-    dataPort = sys.argv[4]
-sendRequest = dataPort + command + fileName
-
-#establish control connection with server
-controlConnection = initiateContact(serverHost, serverPort)
-#call makeRequest function to send command to server
-if (controlConnection):
-    makeRequest(controlConnection, sendRequest)
-    response = recvResponse(controlConnection)
-    print(response)
-
+    print("Error: Invalid program inputs.")
 
 
 
