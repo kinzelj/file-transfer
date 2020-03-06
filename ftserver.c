@@ -9,8 +9,7 @@
 #include <arpa/inet.h>
 #include <dirent.h>
 
-#define MAX_INPUT_SIZE 256
-#define MAX_FILE_BUFFER 1024
+#define MAX_INPUT_SIZE 1024
 
 /******************************************************************************************************
  * error handler function receives message and passes to perror function to print a system error message 
@@ -142,14 +141,14 @@ void getSocketInfo(struct sockaddr_in *addr, int socketFD)
 ******************************************************************************************************/
 void recvNewMessage(int socketFD, char *message)
 {
-    memset(message, '\0', sizeof(message));         // Clear out the buffer
+    memset(message, '\0', MAX_INPUT_SIZE);         // Clear out the buffer
     recv(socketFD, message, MAX_INPUT_SIZE - 1, 0); // Read data from the socket, leaving \0 at end
-    printf("message: %s\n", message);
     return;
 }
 
 int validateInput(char *input)
 {
+    printf("input: %s\n", input);
     char checkInput[MAX_INPUT_SIZE];
     strcpy(checkInput, input);
     checkInput[strcspn(checkInput, "\n")] = '\0'; // Remove the trailing \n
@@ -210,16 +209,15 @@ void handleRequest(char *input, int connectionFD)
             while ((dir = readdir(d)) != NULL)
             {
                 char file[MAX_INPUT_SIZE];
-                memset(file, '\0', sizeof(file)); // Clear out the buffer
+                memset(file, '\0', MAX_INPUT_SIZE); // Clear out the buffer
                 strcpy(file, dir->d_name);
 
                 if (strcmp(file, "..") != 0 && strcmp(file, ".") != 0)
                 {
-                    printf("%s\n", file);
+                    printf("file sent to client: %s\n", file);
                     sendMessage(dataFD, file);
                     char returnMessage[MAX_INPUT_SIZE];
                     recvNewMessage(dataFD, returnMessage);
-                    printf("returnMessage: %s\n", returnMessage);
                     if (strcmp(returnMessage, "next file") != 0)
                     {
                         error("ERROR with data transfer");
@@ -227,8 +225,10 @@ void handleRequest(char *input, int connectionFD)
                 }
             }
             sendMessage(dataFD, "done");
+            printf("%s\n", "All files sent.");
             closedir(d);
         }
+        close(dataFD);
     }
 
     if (strcmp(command, "-g") == 0)
@@ -272,6 +272,7 @@ int main(int argc, char *argv[])
 
             char message[MAX_INPUT_SIZE];
             recvNewMessage(newConnectionFD, message);
+            // printf("newMessage: %s\n", message);
 
             if (strcmp(message, "data socket open") == 0)
             {

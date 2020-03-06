@@ -23,8 +23,8 @@ def initiateContact(serverHost, serverPort):
 #*************************************************************************************************
 # 
 #*************************************************************************************************
-def sendMessage(socket, message):
-    socket.send(message)
+def sendMessage(socket, message, host, port):
+    socket.sendto(message.encode(),(host, port))
     return
 
 #*************************************************************************************************
@@ -32,7 +32,7 @@ def sendMessage(socket, message):
 #*************************************************************************************************
 def recvResponse(socket, bufferSize):
     returnMessage = socket.recv(bufferSize)
-    return returnMessage
+    return returnMessage.decode()
 
 #*************************************************************************************************
 # 
@@ -41,7 +41,7 @@ def openSocket(host, port):
     newSocket = socket(AF_INET, SOCK_STREAM)
     newSocket.bind((host, port))
     newSocket.listen(1)
-    print ("Ready to receive on port {}").format(port)
+    print ("Ready to receive on port {}".format(port))
     return newSocket
 
 #*************************************************************************************************
@@ -50,33 +50,35 @@ def openSocket(host, port):
 def recvFiles(socket, bufferSize, host, port):
     print("Server directory files:")
     done = 0
+    connectionSocket, addr = socket.accept()
     while (done != 1):
-        connectionSocket, addr = socket.accept()
         recvMessage = connectionSocket.recv(bufferSize)
-        if (recvMessage != "done"):
-            print(recvMessage)
+        if (recvMessage.decode() != "done"):
+            print(recvMessage.decode())
             returnMessage = "next file"
-            # sendMessage(connectionSocket, returnMessage, host, port)
-            sendMessage(connectionSocket, returnMessage)
+            sendMessage(connectionSocket, returnMessage, host, port)
+            # sendMessage(connectionSocket, returnMessage)
         else:
             done = 1
-
+    connectionSocket.close() 
 #*************************************************************************************************
 # 
 #*************************************************************************************************
-def getServerFiles(controlConnection, sendRequest, serverHost, serverPort):
-    # sendMessage(controlConnection, sendRequest, serverHost, serverPort)
-    sendMessage(controlConnection, sendRequest)
-    response = recvResponse(controlConnection, BUFFER)
+def handleRequest(cmd, controlConnection, sendRequest, serverHost, serverPort, bufferSize):
+    sendMessage(controlConnection, sendRequest, serverHost, serverPort)
+    response = recvResponse(controlConnection, bufferSize)
     if(response == "connection accepted"):
         dataServerSocket = openSocket("localhost", int(dataPort))
         if (dataServerSocket):
-            # sendMessage(controlConnection, "data socket open", serverHost, serverPort)
-            sendMessage(controlConnection, "data socket open")
-            recvFiles(dataServerSocket, BUFFER, serverHost, serverPort)
+            if(cmd == "-l"):
+                sendMessage(controlConnection, "data socket open", serverHost, serverPort)
+                recvFiles(dataServerSocket, bufferSize, serverHost, serverPort)
+            if(cmd == "-g"):
+                print('-g')
         else:
             print("Error: Unable to create data socket")
-
+    else:
+        print(response)
 
 #*************************************************************************************************
 #   Main program body
@@ -94,17 +96,16 @@ if (len(sys.argv) >= 5):
         command = sys.argv[3]
         dataPort = ""
         fileName = ""
-        sendRequest = ""
+        sendRequest = "empty"
         if (sys.argv[3] == '-l'):
             dataPort = sys.argv[4]
             sendRequest = command + str(len(dataPort)) + "-" + dataPort
-            getServerFiles(controlConnection, sendRequest, serverHost, serverPort)
         if (sys.argv[3] == '-g'):
             fileName = sys.argv[4]
             dataPort = sys.argv[5]
             sendRequest = command + str(len(fileName)) + "-" + fileName + str(len(dataPort)) + "-" + dataPort
-
             
+        handleRequest(sys.argv[3], controlConnection, sendRequest, serverHost, serverPort, BUFFER)
 
 else:
     print("Error: Invalid program inputs.")
