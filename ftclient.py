@@ -61,6 +61,27 @@ def recvFiles(socket, bufferSize, host, port):
         else:
             done = 1
     connectionSocket.close() 
+    
+#*************************************************************************************************
+# 
+#*************************************************************************************************   
+def importTextFile(socket, bufferSize, host, port):
+    connectionSocket, addr = socket.accept()
+    fileSize = connectionSocket.recv(bufferSize)
+    fileSizeInt = int(fileSize.decode())
+    print(fileSizeInt)
+    returnMessage = "file size received"
+    sendMessage(connectionSocket, returnMessage, host, port)
+    
+    #receive file contents from server
+    file_content = ""
+    charsRead = 0
+    while(charsRead < fileSizeInt):
+        buffer_message = connectionSocket.recv(bufferSize) 
+        file_content += buffer_message
+        charsRead += len(buffer_message)
+    print(file_content)
+    
 #*************************************************************************************************
 # 
 #*************************************************************************************************
@@ -70,11 +91,11 @@ def handleRequest(cmd, controlConnection, sendRequest, serverHost, serverPort, b
     if(response == "connection accepted"):
         dataServerSocket = openSocket("localhost", int(dataPort))
         if (dataServerSocket):
+            sendMessage(controlConnection, "data socket open", serverHost, serverPort)
             if(cmd == "-l"):
-                sendMessage(controlConnection, "data socket open", serverHost, serverPort)
                 recvFiles(dataServerSocket, bufferSize, serverHost, serverPort)
             if(cmd == "-g"):
-                print('-g')
+                importTextFile(dataServerSocket, bufferSize, serverHost, serverPort)
         else:
             print("Error: Unable to create data socket")
     else:
