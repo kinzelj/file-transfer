@@ -65,11 +65,16 @@ def recvFiles(socket, bufferSize, host, port):
 #*************************************************************************************************
 # 
 #*************************************************************************************************   
-def importTextFile(socket, bufferSize, host, port):
+def importTextFile(fileName, socket, bufferSize, host, port):
     connectionSocket, addr = socket.accept()
     fileSize = connectionSocket.recv(bufferSize)
+
+    if (fileSize.decode() == "file not found"):
+        print("Error: File not found on server")
+        connectionSocket.close()
+        return
+
     fileSizeInt = int(fileSize.decode())
-    print(fileSizeInt)
     returnMessage = "file size received"
     sendMessage(connectionSocket, returnMessage, host, port)
     
@@ -78,14 +83,37 @@ def importTextFile(socket, bufferSize, host, port):
     charsRead = 0
     while(charsRead < fileSizeInt):
         buffer_message = connectionSocket.recv(bufferSize) 
-        file_content += buffer_message
+        file_content += buffer_message.decode('utf-8', 'ignore')
         charsRead += len(buffer_message)
-    print(file_content)
     
+    #send file acknowledgement back to server
+    returnMessage = "file received"
+    sendMessage(connectionSocket, returnMessage, host, port)
+    
+    #check if file exists, sorce: https://linuxize.com/post/python-check-if-file-exists/
+    try:
+        f = open(fileName)
+        f.close()
+        overwrite = input(fileName + " already exists, do you want to overwrite? (y/n): ")
+        if(overwrite == "y"):
+            file = open(fileName, "w")
+            file.write(file_content)
+            file.close()
+            print(fileName + " imported to local directory.")
+
+    except IOError:
+        #if file does not exist create and write contents from imported file
+        file = open(fileName, "w")
+        file.write(file_content)
+        file.close()
+        print(fileName + " imported to local directory.")
+
+    connectionSocket.close()
+
 #*************************************************************************************************
 # 
 #*************************************************************************************************
-def handleRequest(cmd, controlConnection, sendRequest, serverHost, serverPort, bufferSize):
+def handleRequest(cmd, fileName, controlConnection, sendRequest, serverHost, serverPort, bufferSize):
     sendMessage(controlConnection, sendRequest, serverHost, serverPort)
     response = recvResponse(controlConnection, bufferSize)
     if(response == "connection accepted"):
@@ -95,7 +123,7 @@ def handleRequest(cmd, controlConnection, sendRequest, serverHost, serverPort, b
             if(cmd == "-l"):
                 recvFiles(dataServerSocket, bufferSize, serverHost, serverPort)
             if(cmd == "-g"):
-                importTextFile(dataServerSocket, bufferSize, serverHost, serverPort)
+                importTextFile(fileName, dataServerSocket, bufferSize, serverHost, serverPort)
         else:
             print("Error: Unable to create data socket")
     else:
@@ -106,10 +134,10 @@ def handleRequest(cmd, controlConnection, sendRequest, serverHost, serverPort, b
 #*************************************************************************************************
 BUFFER = 1024
 if (len(sys.argv) >= 5):
-    print(sys.argv)
     serverHost = sys.argv[1]
     serverPort = int(sys.argv[2])
-    
+    fileName = ""    
+
     #establish control connection with server
     controlConnection = initiateContact(serverHost, serverPort)
     #call makeRequest function to send command to server
@@ -126,7 +154,9 @@ if (len(sys.argv) >= 5):
             dataPort = sys.argv[5]
             sendRequest = command + str(len(fileName)) + "-" + fileName + str(len(dataPort)) + "-" + dataPort
             
-        handleRequest(sys.argv[3], controlConnection, sendRequest, serverHost, serverPort, BUFFER)
+        handleRequest(sys.argv[3], fileName, controlConnection, sendRequest, serverHost, serverPort, BUFFER)
+
+    controlConnection.close()
 
 else:
     print("Error: Invalid program inputs.")

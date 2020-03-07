@@ -239,7 +239,7 @@ cover
 
       “It is more than I engage for, I assure you.”
 
-      “But consider your daughters. Only think what an establishment it
+      But consider your daughters. Only think what an establishment it
       would be for one of them. Sir William and Lady Lucas are
       determined to go, merely on that account, for in general, you
       know, they visit no newcomers. Indeed you must go, for it will be
@@ -1025,7 +1025,7 @@ cover
 
       “Never, sir.”
 
-      “Do you not think it would be a proper compliment to the place?”
+      “Do you not think it would be a proper compliment to the place?
 
       “It is a compliment which I never pay to any place if I can avoid
       it.”
@@ -3623,7 +3623,7 @@ cover
       “No—I cannot talk of books in a ball-room; my head is always full
       of something else.”
 
-      “The _present_ always occupies you in such scenes—does it?” said
+      The _present_ always occupies you in such scenes—does it?” said
       he, with a look of doubt.
 
       “Yes, always,” she replied, without knowing what she said, for
@@ -5153,7 +5153,7 @@ cover
       no idea of there being so much design in the world as some
       persons imagine.”
 
-      “I am far from attributing any part of Mr. Bingley’s conduct to
+      “I am far from attributing any part of Mr. Bingleys conduct to
       design,” said Elizabeth; “but without scheming to do wrong, or to
       make others unhappy, there may be error, and there may be misery.
       Thoughtlessness, want of attention to other people’s feelings,
@@ -9302,7 +9302,7 @@ cover
       his complexion, _his_ mind was not very differently engaged.
 
       “There is also one other person in the party,” he continued after
-      a pause, “who more particularly wishes to be known to you. Will
+      a pause, who more particularly wishes to be known to you. Will
       you allow me, or do I ask too much, to introduce my sister to
       your acquaintance during your stay at Lambton?”
 
