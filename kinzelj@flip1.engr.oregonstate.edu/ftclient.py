@@ -2,49 +2,42 @@
 #   ftclient.py 
 #   Programmed by: Josh Kinzel
 #   CS372 - Project 2
-#   Last Modified: 2020-03-08
+#   Last Modified: 2020-02-27
 #   Resources Sited: Python Internet Protocols and Support: 
 #       https://docs.python.org/release/2.6.5/library/internet.html
-#   Description: Client side  program connects with ftserver and request either the list of files
-#                in the servers local directory, or export the contents from one of the files.
+#   Description: Client side program
 #*************************************************************************************************
 from socket import *
 import sys
 import signal
 
 #*************************************************************************************************
-# initiateContact function attempt to creates a TCP connection with a server host 
-# Function returns the socket file descriptor
+#  initiateContact function attempt to creates a TCP connection with a server host 
 #*************************************************************************************************
 def initiateContact(serverHost, serverPort):
-    host = gethostbyname(serverHost)
     clientSocket = socket(AF_INET, SOCK_STREAM)
-    clientSocket.connect((host, serverPort))
+    clientSocket.connect((serverHost, serverPort))
     print("Sent connection request to: {}:{}".format(serverHost, serverPort))
     return clientSocket
 
 #*************************************************************************************************
-# sendMessage function sends message data to connected server socket 
+# 
 #*************************************************************************************************
 def sendMessage(socket, message, host, port):
     socket.sendto(message.encode(),(host, port))
     return
 
 #*************************************************************************************************
-# recvResponse function waits on connected socket for return message from server  
-# Function return the decoded message string
+# 
 #*************************************************************************************************
 def recvResponse(socket, bufferSize):
     returnMessage = socket.recv(bufferSize)
     return returnMessage.decode()
 
 #*************************************************************************************************
-# openSocket establishes a server socket to receive message from data connection from server
-# side program. This is opened after the connection is made and the request is processed by the
-# server.
+# 
 #*************************************************************************************************
-def openSocket(port):
-    host = ''
+def openSocket(host, port):
     newSocket = socket(AF_INET, SOCK_STREAM)
     newSocket.bind((host, port))
     newSocket.listen(1)
@@ -52,9 +45,7 @@ def openSocket(port):
     return newSocket
 
 #*************************************************************************************************
-# recvFiles function processes the list files request (-l) by the client. 
-# Function will receive a file name from the server one at a time until all file names have been
-# receive. 
+#
 #*************************************************************************************************
 def recvFiles(socket, bufferSize, host, port):
     print("Server directory files:")
@@ -66,15 +57,13 @@ def recvFiles(socket, bufferSize, host, port):
             print(recvMessage.decode())
             returnMessage = "next file"
             sendMessage(connectionSocket, returnMessage, host, port)
+            # sendMessage(connectionSocket, returnMessage)
         else:
             done = 1
     connectionSocket.close() 
     
 #*************************************************************************************************
-# importTextFile function processes the get file contents request (-g) by the client.
-# Function will continue to open TCP connections until the complete file contents have been received.
-# The function will check if the file name already exists in the current directory then prompt the
-# user to overwrite the file if one exists.
+# 
 #*************************************************************************************************   
 def importTextFile(fileName, socket, bufferSize, host, port):
     connectionSocket, addr = socket.accept()
@@ -101,7 +90,7 @@ def importTextFile(fileName, socket, bufferSize, host, port):
     returnMessage = "file received"
     sendMessage(connectionSocket, returnMessage, host, port)
     
-    #check if file exists, resorce: https://linuxize.com/post/python-check-if-file-exists/
+    #check if file exists, sorce: https://linuxize.com/post/python-check-if-file-exists/
     try:
         f = open(fileName)
         f.close()
@@ -122,27 +111,18 @@ def importTextFile(fileName, socket, bufferSize, host, port):
     connectionSocket.close()
 
 #*************************************************************************************************
-# handleRequest function processes the client input.
-# If the connection is accepted by the server, the function will call either the recvFiles or 
-# importTextFile functions depending on the input command. 
+# 
 #*************************************************************************************************
 def handleRequest(cmd, fileName, controlConnection, sendRequest, serverHost, serverPort, bufferSize):
-    #send user command to server to determine if request is valid
     sendMessage(controlConnection, sendRequest, serverHost, serverPort)
     response = recvResponse(controlConnection, bufferSize)
-
-    #if valid user input, open data socket to receive incoming transmission
     if(response == "connection accepted"):
-        dataServerSocket = openSocket(int(dataPort))
+        dataServerSocket = openSocket("localhost", int(dataPort))
         if (dataServerSocket):
             sendMessage(controlConnection, "data socket open", serverHost, serverPort)
-            #if list files command, call recvFiles function
             if(cmd == "-l"):
-                print("Requesting directory files from server...")
                 recvFiles(dataServerSocket, bufferSize, serverHost, serverPort)
-            #if export file contents command, call importTextFile function
             if(cmd == "-g"):
-                print("Requesting file transfer from server...")
                 importTextFile(fileName, dataServerSocket, bufferSize, serverHost, serverPort)
         else:
             print("Error: Unable to create data socket")
@@ -150,27 +130,25 @@ def handleRequest(cmd, fileName, controlConnection, sendRequest, serverHost, ser
         print(response)
 
 #*************************************************************************************************
-# Main program body
+#   Main program body
 #*************************************************************************************************
 BUFFER = 1024
 if (len(sys.argv) >= 5):
-    #determine server host name and port from user input
-    serverHost = ""
     if(sys.argv[1] == "flip1"):
-        serverHost = "flip1.engr.oregonstate.edu"
+        severHost = "flip1.engr.oregonstate.edu"
     elif(sys.argv[1] == "flip2"):
-        serverHost = "flip2.engr.oregonstate.edu"
+        severHost = "flip2.engr.oregonstate.edu"
     elif(sys.argv[1] == "flip3"):
-        serverHost = "flip3.engr.oregonstate.edu"
+        severHost = "flip3.engr.oregonstate.edu"
     else:
         serverHost = sys.argv[1]
+
     serverPort = int(sys.argv[2])
+    fileName = ""    
 
     #establish control connection with server
     controlConnection = initiateContact(serverHost, serverPort)
-
-    #define request command and variables to send to server, then handle user request
-    fileName = ""    
+    #call makeRequest function to send command to server
     if (controlConnection):
         command = sys.argv[3]
         dataPort = ""
@@ -183,8 +161,7 @@ if (len(sys.argv) >= 5):
             fileName = sys.argv[4]
             dataPort = sys.argv[5]
             sendRequest = command + str(len(fileName)) + "-" + fileName + str(len(dataPort)) + "-" + dataPort
-
-        #call handleRequest function to send request to server and handle response    
+            
         handleRequest(sys.argv[3], fileName, controlConnection, sendRequest, serverHost, serverPort, BUFFER)
 
     controlConnection.close()

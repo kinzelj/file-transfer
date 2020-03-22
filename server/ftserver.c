@@ -1,3 +1,11 @@
+/*************************************************************************************************
+  ftserver.c 
+  Programmed by: Josh Kinzel
+  CS372 - Project 2
+  Last Modified: 2020-03-08
+  Resources Sited: Beej's Guide to Network Programming: https://beej.us/guide/bgnet/html/ 
+  Description: Server side file transfer program that provides access to files in local directory.
+*************************************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -11,6 +19,7 @@
 #include <fcntl.h>
 
 #define MAX_INPUT_SIZE 1024
+#define h_addr h_addr_list[0]
 
 /******************************************************************************************************
  * error handler function receives message and passes to perror function to print a system error message 
@@ -20,9 +29,32 @@ void error(const char *msg)
     perror(msg);
     exit(1);
 }
-
 /******************************************************************************************************
- * 
+ * get_ip_str function determines the ip address of the sockaddr passed to function.
+ * Function returns a char * to the ip string
+ * source: https://beej.us/guide/bgnet/html/#cb112-15 
+******************************************************************************************************/
+char *get_ip_str(const struct sockaddr *sa, char *s, size_t maxlen)
+{
+    switch(sa->sa_family) {
+        case AF_INET:
+            inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr), s, maxlen);
+            break;
+
+        case AF_INET6:
+            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr), s, maxlen);
+            break;
+
+        default:
+            strncpy(s, "Unknown AF", maxlen);
+            return NULL;
+    }
+
+    return s;
+}
+/******************************************************************************************************
+ * countFile function determines the character count of the text file passed as its input.
+ * Function returns an int of the file count
 ******************************************************************************************************/
 int countFile(char * file_name)
 {
@@ -61,7 +93,8 @@ int countFile(char * file_name)
 }
 
 /******************************************************************************************************
- * 
+ * readFile function reads the contents of the file passed to the function then stores
+ * its contents in the return_contents parameter.
 ******************************************************************************************************/
 void readFile(char * file_name, char * return_contents)
 {
@@ -123,33 +156,27 @@ void readFile(char * file_name, char * return_contents)
 }
 
 /******************************************************************************************************
- * openSocket function
+ * openSocket function creates a server side socket to listen for incoming TCP connections
 ******************************************************************************************************/
 int openSocket(char *host, char *port)
 {
     int socketFD, portNumber;
     struct sockaddr_in serverAddress;
-    struct hostent *serverHostInfo;
 
     memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
+
+    // Set up the socket
+    socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
+    if (socketFD < 0)
+        error("ERROR creating socket");
 
     // Set up the address struct
     memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
     portNumber = atoi(port);                                     // Get the port number, convert to an integer from a string
     serverAddress.sin_family = AF_INET;                          // Create a network-capable socket
     serverAddress.sin_port = htons(portNumber);                  // Store the port number
-    serverHostInfo = gethostbyname(host);                        // Convert the machine name into a special form of address
-    if (serverHostInfo == NULL)
-    {
-        fprintf(stderr, "CLIENT: ERROR, no such host\n");
-        exit(0);
-    }
-    memcpy((char *)&serverAddress.sin_addr.s_addr, (char *)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
-
-    // Set up the socket
-    socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
-    if (socketFD < 0)
-        error("ERROR opening socket");
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    memset(serverAddress.sin_zero, '\0', sizeof serverAddress);
 
     // Enable the socket to begin listening
     if (bind(socketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to port
@@ -171,48 +198,45 @@ int openSocket(char *host, char *port)
 }
 
 /******************************************************************************************************
- * initiateContact function establishes TCP connection with chat server from port and host passed as
- * arguments. Client handle defined by user is passed to server to estable initial connection
+ * initiateContact function establishes TCP connection with a client socket.
+ * Input parameters are the connecting clients host url and port number
  * Function returns integer value of socket file descriptor
 ******************************************************************************************************/
 int initiateContact(char *host, char *port)
 {
-    int socketFD, portNumber, charsWritten;
-    struct sockaddr_in serverAddress;
-    struct hostent *serverHostInfo;
+    struct addrinfo clientAddr, *res;
+    int socketFD;
 
-    // Set up the address struct
-    memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
-    portNumber = atoi(port);                                     // Get the port number, convert to an integer from a string
-    serverAddress.sin_family = AF_INET;                          // Create a network-capable socket
-    serverAddress.sin_port = htons(portNumber);                  // Store the port number
-    serverHostInfo = gethostbyname(host);                        // Convert the machine name into a special form of address
-    if (serverHostInfo == NULL)
-    {
-        fprintf(stderr, "CLIENT: ERROR, no such host\n");
-        exit(0);
-    }
-    memcpy((char *)&serverAddress.sin_addr.s_addr, (char *)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
+    memset(&clientAddr, 0, sizeof clientAddr);
+    clientAddr.ai_family = AF_INET;
+    clientAddr.ai_socktype = SOCK_STREAM;
 
-    // Set up the socket
-    socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
-    if (socketFD < 0)
-        error("CLIENT: ERROR opening socket");
+    getaddrinfo(host, port, &clientAddr, &res);
+
+    socketFD = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 
     // Connect to server
-    if (connect(socketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
+    if (connect(socketFD, res->ai_addr, res->ai_addrlen) < 0) // Connect socket to address
     {
-        fprintf(stderr, "Error: could not contact client on port %d\n", portNumber);
+        fprintf(stderr, "Error: could not contact client on port %s\n", port);
         exit(2);
     }
-    printf("SERVER: Connection made with %s:%d\n", inet_ntoa(serverAddress.sin_addr), ntohs(serverAddress.sin_port));
+
+    in_port_t portNum = ((struct sockaddr_in*)((struct sockaddr *)res->ai_addr))->sin_port;
+    char hostName[INET_ADDRSTRLEN];
+    get_ip_str((struct sockaddr *)(res->ai_addr), hostName, INET_ADDRSTRLEN);
+    
+    printf("SERVER: Connection made with %s:%d\n", hostName, ntohs(portNum));
 
     //return socket file descriptor
+    freeaddrinfo(res);
     return socketFD;
 }
 
 /******************************************************************************************************
- * recvNewConnection function
+ * recvNewConnection function waits for incoming TCP connection on socket file descriptor passed
+ * as an input. 
+ * Function return the newly created connection file descriptor.
 ******************************************************************************************************/
 int recvNewConnection(int socketFD)
 {
@@ -231,6 +255,10 @@ int recvNewConnection(int socketFD)
     return connectionFD;
 }
 
+/******************************************************************************************************
+ * getSocketInfo function determines sockaddr name of connected socket from socket file descriptor
+ * passed to function by calling getpeername function
+******************************************************************************************************/
 void getSocketInfo(struct sockaddr_in *addr, int socketFD)
 {
     socklen_t addrSize = sizeof(*addr);
@@ -239,7 +267,7 @@ void getSocketInfo(struct sockaddr_in *addr, int socketFD)
 }
 
 /******************************************************************************************************
- * recvNewInput function
+ * recvNewInput function waits on connected socket for incoming message from client
 ******************************************************************************************************/
 void recvNewMessage(int socketFD, char *message)
 {
@@ -249,7 +277,7 @@ void recvNewMessage(int socketFD, char *message)
 }
 
 /******************************************************************************************************
- * validateInput function
+ * validateInput function determines if client input is valid (either -l or -g)
 ******************************************************************************************************/
 int validateInput(char *input)
 {
@@ -268,7 +296,7 @@ int validateInput(char *input)
 }
 
 /******************************************************************************************************
- * sendMessage function
+ * sendMessage function sends message through connected client socket
 ******************************************************************************************************/
 void sendMessage(int socketFD, char *message)
 {
@@ -279,10 +307,12 @@ void sendMessage(int socketFD, char *message)
 }
 
 /******************************************************************************************************
- * handleRequest function
+ * handleRequest function handles the client request to either pass the current server directory file 
+ * names, or export the contents of a specified file.
 ******************************************************************************************************/
 void handleRequest(char *input, int connectionFD)
 {
+    printf("Processing client request...\n");
     char command[3];
     strncpy(command, input, 2);
     command[2] = '\0';
@@ -419,7 +449,11 @@ void handleRequest(char *input, int connectionFD)
 }
 
 /******************************************************************************************************
- * Main function
+ * Main function opens TCP socket to the network and waits for a client connection. Once a connection
+ * is made the program will validate the inputs then handle the client request. The program will allow
+ * two commands from the client: list file name (-l) and export file contents (-g <FILE NAME>). Once
+ * request is complete the connection is closed and the program will wait until another client 
+ * request is made or program is terminated.
 ******************************************************************************************************/
 int main(int argc, char *argv[])
 {
@@ -430,6 +464,7 @@ int main(int argc, char *argv[])
     //start server on local host with port defined by user
     int controlSocketFD = openSocket(host, port);
 
+    //loop until server is terminated 
     while (1)
     {
         //establish control connection with client
@@ -439,6 +474,7 @@ int main(int argc, char *argv[])
         recvNewMessage(newConnectionFD, input);
         int inputValidated = validateInput(input);
 
+        //if input is valid, send connection accepted message to client the process request
         if (!inputValidated)
         {
             printf("Invalid input\n");
@@ -449,14 +485,17 @@ int main(int argc, char *argv[])
         }
         else
         {
+            //send connection accepted message to client
             char *acceptMessage = "connection accepted";
             sendMessage(newConnectionFD, acceptMessage);
 
+            //wait for client socket to open
             char message[MAX_INPUT_SIZE];
             recvNewMessage(newConnectionFD, message);
 
             if (strcmp(message, "data socket open") == 0)
             {
+                //handle client request by calling handleRequest function
                 handleRequest(input, newConnectionFD);
             }
             else
