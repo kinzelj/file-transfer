@@ -1,6 +1,4 @@
-CS372 Project 2 - File Transfer
-
-Josh Kinzel
+Network File Transfer
 
 BUILD & RUN:
 
